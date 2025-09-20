@@ -22,6 +22,20 @@ export function createGame(io) {
   let levelStart = 0;
   let levelNumber = 0;
   let levelHistory = [];
+  
+  // Make bumpy asteroid polygons (server-side so all clients agree)
+  function makeAsteroidVerts(seed, sides = 8, r = 24, jitter = 0.35) {
+  // deterministic RNG from seed
+  let x = Math.sin(seed) * 10000;
+  const rnd = () => (x = Math.sin(x) * 10000, x - Math.floor(x));
+  const arr = [];
+  for (let i = 0; i < sides; i++) {
+    const a = (i / sides) * Math.PI * 2;
+    const jr = r * (1 - jitter/2 + rnd() * jitter);
+    arr.push({ x: Math.cos(a) * jr, y: Math.sin(a) * jr });
+  }
+  return arr;
+}
 
   function resetForLevel() {
     bullets = [];
@@ -82,16 +96,21 @@ export function createGame(io) {
     }
   }
 
-  function addAsteroid(cfg) {
-    const edge = Math.floor(Math.random()*4);
-    let x,y,vx,vy;
-    const speed = cfg.asteroidSpeed + Math.random()*0.8;
-    if (edge === 0)      { x = 0; y = Math.random()*WORLD.height; vx = speed; vy = (Math.random()-0.5)*speed; }
-    else if (edge === 1) { x = WORLD.width; y = Math.random()*WORLD.height; vx = -speed; vy = (Math.random()-0.5)*speed; }
-    else if (edge === 2) { x = Math.random()*WORLD.width; y = 0; vx = (Math.random()-0.5)*speed; vy = speed; }
-    else                 { x = Math.random()*WORLD.width; y = WORLD.height; vx = (Math.random()-0.5)*speed; vy = -speed; }
-    asteroids.push({ id: 'a'+Date.now()+Math.random(), x,y,vx,vy, r: 18 + Math.random()*12 });
-  }
+function addAsteroid(cfg) {
+  const edge = Math.floor(Math.random()*4);
+  let x,y,vx,vy;
+  const speed = cfg.asteroidSpeed + Math.random()*0.8;
+  if (edge === 0)      { x = 0; y = Math.random()*WORLD.height; vx = speed; vy = (Math.random()-0.5)*speed; }
+  else if (edge === 1) { x = WORLD.width; y = Math.random()*WORLD.height; vx = -speed; vy = (Math.random()-0.5)*speed; }
+  else if (edge === 2) { x = Math.random()*WORLD.width; y = 0; vx = (Math.random()-0.5)*speed; vy = speed; }
+  else                 { x = Math.random()*WORLD.width; y = WORLD.height; vx = (Math.random()-0.5)*speed; vy = -speed; }
+
+  const id = 'a' + Date.now() + Math.random();
+  const r = 18 + Math.random()*12;
+  const seed = Math.floor(Math.random()*1e9);
+  const verts = makeAsteroidVerts(seed, 9, r, 0.35); // bumpier!
+  asteroids.push({ id, x, y, vx, vy, r, seed, verts });
+}
 
   function step() {
     if (!running) return;
@@ -192,17 +211,13 @@ export function createGame(io) {
   }
 
   io.on('connection', socket => {
-    socket.on('join', ({ name }) => {
-      if (!name || typeof name !== 'string') return;
-      const p = {
-        id: socket.id, name: name.slice(0,20),
-        x: 100, y: 700, vx:0, vy:0, hp:100,
-        upgrades: { speed: 1.0, fireRate: 280 },
-        _lastShotAt: 0, levelScore: 0, totalScore: 0
-      };
-      players.set(socket.id, p);
-      io.emit('player:added', { id: p.id, name: p.name });
-    });
+    socket.on('leave', () => {
+  if (players.has(socket.id)) {
+    players.delete(socket.id);
+    inputs.delete(socket.id);
+    io.emit('player:removed', { id: socket.id });
+  }
+});
 
     socket.on('input', (inp) => {
       inputs.set(socket.id, {
