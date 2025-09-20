@@ -1,0 +1,14 @@
+[Unit]
+Description=LAN Space Invaders Server
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/lan-space-invaders/server
+ExecStart=/usr/bin/node index.js
+Restart=always
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

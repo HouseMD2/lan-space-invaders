@@ -1,10 +1,7 @@
 {
-"expo": {
-"name": "LAN Space Invaders",
-"slug": "lan-space-invaders",
-"scheme": "lsi",
-"web": {
-"bundler": "metro"
-}
-}
+  "expo": {
+    "name": "LAN Space Invaders",
+    "slug": "lan-space-invaders",
+    "web": { "bundler": "metro" }
+  }
 }
